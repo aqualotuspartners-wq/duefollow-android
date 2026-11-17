@@ -86,50 +86,243 @@ public class MainActivity extends Activity {
 
     private int dp(int size) { return Math.round(size * getResources().getDisplayMetrics().density); }
 
+    private android.graphics.drawable.GradientDrawable surface(int color, int radius) {
+        android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
+        shape.setColor(color);
+        shape.setCornerRadius(dp(radius));
+        return shape;
+    }
+
+    private android.graphics.drawable.Drawable interactive(android.graphics.drawable.Drawable background) {
+        return new android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(0x284f46e5), background, surface(Color.WHITE, 20));
+    }
+
+    private android.graphics.drawable.Drawable icon(String kind, int color) {
+        return new android.graphics.drawable.Drawable() {
+            final android.graphics.Paint paint = new android.graphics.Paint(3);
+            @Override public void draw(android.graphics.Canvas canvas) {
+                canvas.save();
+                android.graphics.Rect bounds = getBounds();
+                canvas.translate(bounds.left, bounds.top);
+                canvas.scale(bounds.width() / 24f, bounds.height() / 24f);
+                paint.setColor(color);
+                paint.setStrokeWidth(1.8f);
+                paint.setStyle(android.graphics.Paint.Style.STROKE);
+                paint.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+                if (kind.equals("add")) {
+                    canvas.drawLine(12, 5, 12, 19, paint);
+                    canvas.drawLine(5, 12, 19, 12, paint);
+                } else if (kind.equals("clients")) {
+                    canvas.drawCircle(9, 7, 3, paint);
+                    canvas.drawArc(3, 12, 15, 23, 180, 180, false, paint);
+                    canvas.drawArc(13, 4, 20, 11, -75, 160, false, paint);
+                    canvas.drawArc(14, 12, 22, 22, -90, 90, false, paint);
+                } else if (kind.equals("mail")) {
+                    canvas.drawRoundRect(2, 5, 22, 19, 3, 3, paint);
+                    canvas.drawLine(3, 6, 12, 13, paint);
+                    canvas.drawLine(12, 13, 21, 6, paint);
+                } else if (kind.equals("check")) {
+                    canvas.drawCircle(12, 12, 9, paint);
+                    canvas.drawLine(7, 12, 11, 16, paint);
+                    canvas.drawLine(11, 16, 17, 9, paint);
+                } else if (kind.equals("chat")) {
+                    canvas.drawRoundRect(3, 3, 21, 18, 5, 5, paint);
+                    canvas.drawLine(5, 18, 5, 22, paint);
+                    canvas.drawLine(5, 22, 10, 18, paint);
+                } else if (kind.equals("pro")) {
+                    android.graphics.Path diamond = new android.graphics.Path();
+                    diamond.moveTo(12, 2); diamond.lineTo(21, 11);
+                    diamond.lineTo(12, 22); diamond.lineTo(3, 11); diamond.close();
+                    canvas.drawPath(diamond, paint);
+                    canvas.drawLine(3, 11, 21, 11, paint);
+                } else {
+                    canvas.drawRoundRect(4, 2, 20, 22, 3, 3, paint);
+                    canvas.drawLine(8, 8, 16, 8, paint);
+                    canvas.drawLine(8, 12, 16, 12, paint);
+                    canvas.drawLine(8, 16, 13, 16, paint);
+                }
+                canvas.restore();
+            }
+            @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); }
+            @Override public void setColorFilter(android.graphics.ColorFilter filter) { paint.setColorFilter(filter); }
+            @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+        };
+    }
+
+    private void clickable(View view, Runnable action) {
+        view.setFocusable(true);
+        view.setOnClickListener(clicked -> {
+            clicked.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+            if (android.animation.ValueAnimator.areAnimatorsEnabled()) {
+                clicked.animate().scaleX(0.97f).scaleY(0.97f).setDuration(70)
+                    .withEndAction(() -> {
+                        clicked.animate().scaleX(1).scaleY(1).setDuration(120).start();
+                        action.run();
+                    }).start();
+            } else action.run();
+        });
+    }
+
+    private TextView text(String value, int size, int color, boolean bold) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        view.setFontFeatureSettings("tnum");
+        if (bold) view.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0));
+        return view;
+    }
+
     private void page(String title) {
         screen = title;
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(0xfff2f6f5);
-        scroll.setOnApplyWindowInsetsListener((view, insets) -> {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackground(new android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+            new int[]{0xfff7f7ff, 0xfff4f6fa, 0xffedf1ff}));
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
             view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
                 insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
             return insets;
         });
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(20), dp(20), dp(24));
+        content.setPadding(dp(22), dp(20), dp(22), dp(24));
         scroll.addView(content);
-        setContentView(scroll);
-        label(title, 32);
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        LinearLayout navigation = new LinearLayout(this);
+        navigation.setPadding(dp(10), dp(8), dp(10), dp(8));
+        navigation.setBackgroundColor(Color.WHITE);
+        String[] labels = {"Overview", "Clients", "Pro"};
+        Runnable[] actions = {this::home, this::clientList, this::plans};
+        for (int i = 0; i < labels.length; i++) {
+            final Runnable action = actions[i];
+            boolean selected = i == 0 ? title.equals("DueFollow") || title.startsWith("Invoice") :
+                i == 1 ? title.startsWith("Client") : title.equals("DueFollow Pro");
+            TextView item = text(labels[i], 12, selected ? 0xff4f46e5 : 0xff747a91, selected);
+            item.setGravity(Gravity.CENTER);
+            android.graphics.drawable.Drawable symbol = icon(
+                i == 0 ? "invoice" : i == 1 ? "clients" : "pro", selected ? 0xff4f46e5 : 0xff747a91);
+            symbol.setBounds(0, 0, dp(23), dp(23));
+            item.setCompoundDrawables(null, symbol, null, null);
+            item.setCompoundDrawablePadding(dp(4));
+            item.setPadding(dp(4), dp(8), dp(4), dp(8));
+            item.setBackground(interactive(surface(selected ? 0xffeeedff : Color.WHITE, 16)));
+            item.setContentDescription(labels[i] + (selected ? ", selected" : ""));
+            clickable(item, action);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(68), 1);
+            params.setMargins(dp(4), 0, dp(4), 0);
+            navigation.addView(item, params);
+        }
+        root.addView(navigation);
+        setContentView(root);
+        TextView brand = text("DueFollow", 15, 0xff4f46e5, true);
+        content.addView(brand);
+        label(title.equals("DueFollow") ? "Get paid.\nStay in control." : title, 30);
+        if (android.animation.ValueAnimator.areAnimatorsEnabled()) {
+            content.setAlpha(0);
+            content.setTranslationY(dp(10));
+            content.animate().alpha(1).translationY(0).setDuration(220).start();
+        }
     }
 
     private void label(String value, int size) {
-        TextView text = new TextView(this);
-        text.setText(value);
-        text.setTextColor(0xff14372f);
-        text.setTextSize(size);
-        text.setPadding(0, dp(8), 0, dp(8));
-        content.addView(text);
+        TextView view = text(value, size, size >= 22 ? 0xff171b35 : 0xff687089, size >= 22);
+        view.setPadding(0, dp(size >= 22 ? 14 : 8), 0, dp(10));
+        content.addView(view);
     }
 
     private void button(String title, Runnable action) {
+        if (title.equals("Home") || title.equals("Clients") || title.equals("Explore Pro") ||
+            title.equals("Manage Pro")) return;
+        boolean primary = title.startsWith("Add") || title.startsWith("Save") ||
+            title.equals("Open email draft") || title.equals("Mark paid") || title.contains(" / month") || title.contains(" / year");
         Button button = new Button(this);
         button.setAllCaps(false);
         button.setText(title);
-        button.setTextColor(Color.WHITE);
-        button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff205d4c));
-        button.setOnClickListener(view -> action.run());
-        content.addView(button, -1, dp(52));
+        button.setTextSize(16);
+        button.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0));
+        button.setTextColor(primary ? Color.WHITE : 0xff4338ca);
+        android.graphics.drawable.GradientDrawable background = primary ?
+            new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{0xff635bff, 0xff4737d6}) : surface(Color.WHITE, 18);
+        background.setCornerRadius(dp(18));
+        if (!primary) background.setStroke(dp(1), 0xffdfe2ef);
+        button.setBackground(interactive(background));
+        button.setElevation(dp(primary ? 4 : 1));
+        String kind = title.startsWith("Add") ? "add" :
+            title.contains("email") ? "mail" : title.contains("WhatsApp") ? "chat" :
+            title.startsWith("Save") || title.contains("paid") || title.contains("payment") ?
+                "check" : "invoice";
+        android.graphics.drawable.Drawable symbol = icon(kind, primary ? Color.WHITE : 0xff4f46e5);
+        symbol.setBounds(0, 0, dp(22), dp(22));
+        button.setCompoundDrawablesRelative(symbol, null, null, null);
+        button.setCompoundDrawablePadding(dp(12));
+        clickable(button, action);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.setMargins(0, dp(6), 0, dp(6));
+        button.setMinHeight(dp(64));
+        button.setPadding(dp(16), dp(12), dp(16), dp(12));
+        content.addView(button, params);
     }
 
     private EditText field(String title, String value, int input) {
         label(title, 14);
-        EditText inputView = new EditText(this);
-        inputView.setInputType(input);
-        inputView.setText(value);
-        content.addView(inputView, -1, -2);
-        return inputView;
+        EditText view = new EditText(this);
+        view.setInputType(input);
+        view.setText(value);
+        view.setTextColor(0xff171b35);
+        view.setTextSize(17);
+        view.setPadding(dp(16), dp(15), dp(16), dp(15));
+        android.graphics.drawable.GradientDrawable normal = surface(Color.WHITE, 16);
+        normal.setStroke(dp(1), 0xffdfe2ef);
+        android.graphics.drawable.GradientDrawable focused = surface(Color.WHITE, 16);
+        focused.setStroke(dp(2), 0xff635bff);
+        android.graphics.drawable.StateListDrawable states = new android.graphics.drawable.StateListDrawable();
+        states.addState(new int[]{android.R.attr.state_focused}, focused);
+        states.addState(new int[]{}, normal);
+        view.setBackground(states);
+        view.setMinHeight(dp(60));
+        content.addView(view, -1, -2);
+        return view;
+    }
+
+    private void invoiceCard(JSONObject invoice) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(18), dp(17), dp(18), dp(17));
+        card.setBackground(interactive(surface(Color.WHITE, 22)));
+        card.setElevation(dp(2));
+        JSONObject client = find(clients(), invoice.optString("client"));
+        TextView name = text(client == null ? "Invoice" : client.optString("name"), 17, 0xff171b35, true);
+        card.addView(name);
+        TextView number = text(invoice.optString("number") + "  ·  Due " + invoice.optString("due"),
+            13, 0xff687089, false);
+        number.setPadding(0, dp(7), 0, dp(16));
+        card.addView(number);
+        card.addView(text(invoice.optString("currency") + " " + amount(balance(invoice)), 25, 0xff171b35, true));
+        String state = status(invoice);
+        TextView badge = text(state, 13, state.toLowerCase(Locale.ROOT).contains("overdue")
+            ? 0xffb83e3e : 0xff4f46e5, true);
+        boolean late = state.toLowerCase(Locale.ROOT).contains("overdue");
+        boolean paid = state.equals("Paid");
+        badge.setTextColor(late ? 0xffa52b38 : paid ? 0xff117551 : 0xff4f46e5);
+        badge.setBackground(surface(late ? 0xffffe9ec : paid ? 0xffdef5eb : 0xffeeedff, 10));
+        badge.setPadding(dp(10), dp(6), dp(10), dp(6));
+        LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(-2, -2);
+        badgeParams.topMargin = dp(14);
+        card.addView(badge, badgeParams);
+        card.setContentDescription(name.getText() + ", " + number.getText() + ", " +
+            invoice.optString("currency") + " " + amount(balance(invoice)) + ", " + state);
+        clickable(card, () -> detail(invoice));
+        card.setFocusable(true);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+        params.setMargins(0, dp(5), 0, dp(9));
+        content.addView(card, params);
     }
 
     private boolean pro() { return Reminders.store(this).getBoolean("pro", false); }
@@ -150,7 +343,28 @@ public class MainActivity extends Activity {
                 if (LocalDate.parse(row.optString("due")).isBefore(LocalDate.now())) overdue++;
             }
         }
-        label(open + " open  ·  " + overdue + " overdue", 18);
+        label("Stay on top of every payment.", 16);
+        LinearLayout summary = new LinearLayout(this);
+        String[] values = {String.valueOf(open), String.valueOf(overdue)};
+        String[] captions = {"Open invoices", "Overdue"};
+        for (int i = 0; i < values.length; i++) {
+            LinearLayout tile = new LinearLayout(this);
+            tile.setOrientation(LinearLayout.VERTICAL);
+            tile.setPadding(dp(18), dp(18), dp(18), dp(18));
+            android.graphics.drawable.GradientDrawable tileBackground =
+                new android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                    i == 0 ? new int[]{0xff7568ff, 0xff4737d6} : new int[]{0xffffeee5, 0xffffe4e9});
+            tileBackground.setCornerRadius(dp(24));
+            tile.setBackground(tileBackground);
+            tile.setElevation(dp(3));
+            tile.addView(text(values[i], 36, i == 0 ? Color.WHITE : 0xffb83e49, true));
+            tile.addView(text(captions[i], 14, i == 0 ? 0xffeeedff : 0xff9a535c, false));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
+            params.setMargins(i == 0 ? 0 : dp(6), dp(10), i == 0 ? dp(6) : 0, dp(18));
+            summary.addView(tile, params);
+        }
+        content.addView(summary);
         final int count = open;
         button("Add invoice", () -> {
             if (count >= 3 && !pro()) { plans(); return; }
@@ -162,16 +376,33 @@ public class MainActivity extends Activity {
         button("Clients", this::clientList);
         button(pro() ? "Manage Pro" : "Explore Pro", this::plans);
         if (android.os.Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
-                android.content.pm.PackageManager.PERMISSION_GRANTED)
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
             button("Enable reminders", () -> requestPermissions(new String[]{
                 android.Manifest.permission.POST_NOTIFICATIONS}, 8));
         label("Invoices", 22);
-        if (rows.length() == 0) label("Add an invoice to start tracking a payment.", 16);
+        if (rows.length() == 0) {
+            LinearLayout empty = new LinearLayout(this);
+            empty.setOrientation(LinearLayout.VERTICAL);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(dp(24), dp(32), dp(24), dp(32));
+            empty.setBackground(surface(Color.WHITE, 24));
+            TextView art = text("", 20, 0xff4f46e5, true);
+            android.graphics.drawable.Drawable symbol = icon("check", 0xff635bff);
+            symbol.setBounds(0, 0, dp(52), dp(52));
+            art.setCompoundDrawables(null, symbol, null, null);
+            empty.addView(art);
+            TextView heading = text("Your next payment starts here", 19, 0xff171b35, true);
+            heading.setGravity(Gravity.CENTER);
+            heading.setPadding(0, dp(18), 0, dp(8));
+            empty.addView(heading);
+            TextView help = text("Add your first invoice and we’ll remind you when to follow up.", 15, 0xff687089, false);
+            help.setGravity(Gravity.CENTER);
+            empty.addView(help);
+            content.addView(empty);
+        }
         for (int i = rows.length() - 1; i >= 0; i--) {
             JSONObject row = rows.optJSONObject(i);
-            button(row.optString("number") + "  ·  " + row.optString("currency") + " "
-                + amount(balance(row)) + "  ·  " + status(row), () -> detail(row));
+            invoiceCard(row);
         }
     }
 
@@ -237,12 +468,22 @@ public class MainActivity extends Activity {
         Spinner clientPicker = new Spinner(this);
         clientPicker.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, names));
         label("Client", 14);
-        content.addView(clientPicker, -1, dp(50));
+        clientPicker.setBackground(surface(Color.WHITE, 16));
+        clientPicker.setPadding(dp(12), dp(4), dp(12), dp(4));
+        content.addView(clientPicker, -1, dp(60));
         clientPicker.setSelection(selected);
         EditText number = field("Invoice number", row.optString("number"), 1);
         EditText total = field("Total", row.has("total") ? amount(row.optLong("total")) : "", 8194);
         EditText currency = field("Currency (ISO code)", row.optString("currency", "USD"), 1);
         EditText due = field("Due date (YYYY-MM-DD)", row.optString("due", LocalDate.now().toString()), 1);
+        due.setFocusable(false);
+        due.setContentDescription("Choose payment due date");
+        due.setOnClickListener(view -> {
+            LocalDate current = LocalDate.parse(value(due));
+            new DatePickerDialog(this, (picker, year, month, day) ->
+                due.setText(LocalDate.of(year, month + 1, day).toString()),
+                current.getYear(), current.getMonthValue() - 1, current.getDayOfMonth()).show();
+        });
         EditText link = field("Payment link (optional)", row.optString("link"), 17);
         pdf = field("Attached PDF", row.optString("pdf"), 1);
         pdf.setFocusable(false);
@@ -252,6 +493,11 @@ public class MainActivity extends Activity {
         button("Remove PDF", () -> pdf.setText(""));
         CheckBox repeat = new CheckBox(this);
         repeat.setText("Repeat every 3 days (Pro)");
+        repeat.setTextSize(16);
+        repeat.setTextColor(0xff4338ca);
+        repeat.setMinHeight(dp(60));
+        repeat.setButtonTintList(android.content.res.ColorStateList.valueOf(0xff635bff));
+        repeat.setPadding(dp(8), dp(10), dp(8), dp(10));
         repeat.setEnabled(pro());
         repeat.setChecked(row.optBoolean("repeat"));
         content.addView(repeat);
@@ -396,7 +642,25 @@ public class MainActivity extends Activity {
     private void plans() {
         page("DueFollow Pro");
         button("Home", this::home);
-        label("Unlimited open invoices, recurring reminders and client templates.", 18);
+        LinearLayout hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setPadding(dp(24), dp(28), dp(24), dp(28));
+        android.graphics.drawable.GradientDrawable glow = new android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+            new int[]{0xff7063fa, 0xff302478});
+        glow.setCornerRadius(dp(26));
+        hero.setBackground(glow);
+        hero.addView(text("More clients. More control.", 26, Color.WHITE, true));
+        TextView description = text("Keep every payment moving with DueFollow Pro.", 16, 0xffe2ddff, false);
+        description.setPadding(0, dp(12), 0, 0);
+        hero.addView(description);
+        content.addView(hero);
+        label("Unlimited open invoices", 20);
+        label("Track every client’s outstanding payments.", 15);
+        label("Recurring reminders", 20);
+        label("Get a follow-up reminder every three days.", 15);
+        label("Personal client templates", 20);
+        label("Keep your message consistent and ready to send.", 15);
         if (pro()) {
             label("Your subscription is active.", 16);
             button("Manage subscription", () -> launch(new Intent(Intent.ACTION_VIEW,
