@@ -162,7 +162,8 @@ public class MainActivity extends Activity {
         button("Clients", this::clientList);
         button(pro() ? "Manage Pro" : "Explore Pro", this::plans);
         if (android.os.Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != 0)
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED)
             button("Enable reminders", () -> requestPermissions(new String[]{
                 android.Manifest.permission.POST_NOTIFICATIONS}, 8));
         label("Invoices", 22);
