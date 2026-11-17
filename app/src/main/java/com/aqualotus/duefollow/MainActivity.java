@@ -170,7 +170,7 @@ public class MainActivity extends Activity {
         view.setTextSize(size);
         view.setTextColor(color);
         view.setFontFeatureSettings("tnum");
-        if (bold) view.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0));
+        if (bold) view.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
         return view;
     }
 
@@ -244,7 +244,7 @@ public class MainActivity extends Activity {
         button.setAllCaps(false);
         button.setText(title);
         button.setTextSize(16);
-        button.setTypeface(android.graphics.Typeface.create("sans-serif-medium", 0));
+        button.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
         button.setTextColor(primary ? Color.WHITE : 0xff4338ca);
         android.graphics.drawable.GradientDrawable background = primary ?
             new android.graphics.drawable.GradientDrawable(
