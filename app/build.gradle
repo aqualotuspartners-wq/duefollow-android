@@ -1,0 +1,24 @@
+plugins { id 'com.android.application' version '8.10.1' }
+android {
+    namespace 'com.aqualotus.duefollow'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'com.aqualotus.duefollow'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '1.0'
+    }
+    signingConfigs {
+        release {
+            if (System.getenv('SIGNING_FILE')) {
+                storeFile file(System.getenv('SIGNING_FILE'))
+                storePassword System.getenv('SIGNING_STORE_PASSWORD')
+                keyAlias System.getenv('SIGNING_ALIAS')
+                keyPassword System.getenv('SIGNING_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes { release { if (System.getenv('SIGNING_FILE')) signingConfig signingConfigs.release } }
+}
+dependencies { implementation 'com.android.billingclient:billing:8.0.0' }
