@@ -1,0 +1,68 @@
+name: DueFollow Android
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      signed_release:
+        type: boolean
+        description: Build a signed AAB for Google Play
+        default: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Install Android SDK packages
+        run: |
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;35.0.0'
+
+      - name: Build and check debug APK
+        run: gradle --no-daemon :app:assembleDebug :app:lintDebug
+
+      - name: Build signed AAB
+        if: ${{ inputs.signed_release }}
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_ALIAS: ${{ secrets.SIGNING_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${SIGNING_KEYSTORE_BASE64:?Missing keystore}"
+          : "${SIGNING_STORE_PASSWORD:?Missing store password}"
+          : "${SIGNING_ALIAS:?Missing alias}"
+          : "${SIGNING_KEY_PASSWORD:?Missing key password}"
+          export SIGNING_FILE="$(mktemp)"
+          trap 'rm -f "$SIGNING_FILE"' EXIT
+          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$SIGNING_FILE"
+          gradle --no-daemon :app:bundleRelease
+          jarsigner -verify app/build/outputs/bundle/release/app-release.aab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: duefollow-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.signed_release }}
+        with:
+          name: duefollow-play
+          path: app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
