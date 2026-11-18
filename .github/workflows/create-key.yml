@@ -1,0 +1,54 @@
+name: Create DueFollow signing key
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  create-key:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Generate upload key
+        env:
+          KEY_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          EXISTING_KEY: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          : "${KEY_PASSWORD:?Add SIGNING_STORE_PASSWORD first}"
+
+          if [ -n "$EXISTING_KEY" ]; then
+            echo "A signing key is already configured."
+            exit 1
+          fi
+
+          mkdir signing-backup
+
+          keytool -genkeypair \
+            -keystore signing-backup/duefollow-upload.jks \
+            -storetype JKS \
+            -alias duefollow \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass:env KEY_PASSWORD \
+            -keypass:env KEY_PASSWORD \
+            -dname "CN=DueFollow, O=Aqua Lotus, C=IL" \
+            -noprompt
+
+          base64 -w 0 signing-backup/duefollow-upload.jks \
+            > signing-backup/keystore-base64.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: duefollow-signing-backup
+          path: signing-backup/
+          retention-days: 1
+          if-no-files-found: error
